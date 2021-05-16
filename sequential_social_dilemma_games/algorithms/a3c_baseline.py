@@ -35,7 +35,6 @@ class A3CLoss(object):
 
 def postprocess_a3c_cont(policy, sample_batch, other_agent_batches=None, episode=None):
     """Adds the policy logits, VF preds, and advantages to the trajectory."""
-
     batch = cont_postprocess_trajectory(policy, sample_batch)
     batch = postprocess_advantages(policy, batch)
     return batch
@@ -54,6 +53,11 @@ def actor_critic_loss(policy, model, dist_class, train_batch):
         policy.config["entropy_coeff"],
     )
     return policy.loss.total_loss
+
+
+def add_value_function_fetch(policy):
+    fetch = {SampleBatch.VF_PREDS: policy.model.value_function()}
+    return fetch
 
 
 class ValueNetworkMixin(object):
@@ -83,7 +87,7 @@ def stats(policy, train_batch):
         "var_gnorm": tf.global_norm([x for x in policy.model.trainable_variables()]),
         "vf_loss": policy.loss.vf_loss,
         "cur_contribute_reward_weight": tf.cast(
-            policy.cur_influence_reward_weight_tensor, tf.float32
+            policy.cur_contribute_reward_weight_tensor, tf.float32
         ),
         'contribute_reward': train_batch['contribute_reward'],
         'extrinsic_reward': train_batch['extrinsic_reward'],
@@ -130,6 +134,8 @@ def build_a3c_policy(config):
 
 
 def build_a3c_baseline_trainer(config):
+    tf.keras.backend.set_floatx("float32")
+    config['use_gae'] = False
 
     a3c_tf_cont_policy = build_tf_policy(
         name='A3CContTFPolicy',
@@ -139,16 +145,14 @@ def build_a3c_baseline_trainer(config):
         grad_stats_fn=grad_stats,
         gradients_fn=clip_gradients,
         postprocess_fn=postprocess_a3c_cont,
+        extra_action_fetches_fn=add_value_function_fetch,
         before_loss_init=setup_mixins,
         mixins=[ValueNetworkMixin, LearningRateSchedule, ContributeScheduleMixIn]
     )
-    # config['multiagent']['policies_to_train'] = a3c_tf_cont_policy
     a3c_trainer = build_trainer(
         name="ContA3C",
         default_config=config,
         default_policy=a3c_tf_cont_policy,
-        get_policy_class=get_policy_class,
         validate_config=validate_config,
-        make_policy_optimizer=make_async_optimizer,
     )
     return a3c_trainer

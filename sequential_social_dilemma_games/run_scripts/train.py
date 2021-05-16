@@ -26,9 +26,13 @@ from models.moa_model import MOAModel
 from models.scm_model import SocialCuriosityModule
 from social_dilemmas.envs.env_creator import get_env_creator
 from utility_funcs import update_nested_dict
+import os
 
 parser = argparse.ArgumentParser()
 add_default_args(parser)
+
+
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
 
 def build_experiment_config_dict(args):
@@ -86,7 +90,6 @@ def build_experiment_config_dict(args):
         if args.train_batch_size is not None
         else max(1, args.num_workers) * args.num_envs_per_worker * args.rollout_fragment_length
     )
-
     lr_schedule = (
         list(zip(args.lr_schedule_steps, args.lr_schedule_weights))
         if args.lr_schedule_steps is not None and args.lr_schedule_weights is not None
@@ -121,7 +124,8 @@ def build_experiment_config_dict(args):
                 "custom_options": {
                     "cell_size": lstm_cell_size,
                     "num_other_agents": args.num_agents - 1,
-                    'contirbute_weight': 1.0,
+                    "contribute_reward_clip": 10,
+                    'contribute_reward_weight': 1.0,
                     'contribute_reward_schedule_steps': 1e8,
                     'contribute_reward_schedule_weights': 1.0
                 },

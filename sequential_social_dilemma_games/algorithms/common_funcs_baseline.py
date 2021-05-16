@@ -30,8 +30,11 @@ class ContributeScheduleMixIn(object):
             for key in ["contribute_reward_schedule_steps", "contribute_reward_schedule_weights"]
         ):
             self.compute_contribute_reward_weight = lambda: self.baseline_contribute_reward_weight
-        self.contribute_reward_schedule_steps = config["contribute_reward_schedule_steps"]
-        self.contribute_reward_schedule_weights = config["contribute_reward_schedule_weights"]
+        # self.contribute_reward_schedule_steps = config["contribute_reward_schedule_steps"]
+        self.contribute_reward_clip = config['contribute_reward_clip']
+        self.contribute_reward_schedule_steps = [0, 10000000, 1e8, 3e8]
+        self.contribute_reward_schedule_weights = [0.0, 0.0, 1.0, 0.5]
+        # self.contribute_reward_schedule_weights = config["contribute_reward_schedule_weights"]
         self.timestep = 0
         self.cur_contribute_reward_weight = np.float32(self.compute_contribute_reward_weight())
         # This tensor is for logging the weight to progress.csv
@@ -70,7 +73,7 @@ def cont_postprocess_trajectory(policy, sample_batch, other_agent_batches=None, 
 
 
 def weigh_and_add_contribute_reward(policy, sample_batch):
-    cur_contribute_reward_weight = policy.compute_contribute_reward_weight()
+    # cur_contribute_reward_weight = policy.compute_contribute_reward_weight()
     # Since the reward calculation is delayed by 1 step, sample_batch[SOCIAL_INFLUENCE_REWARD][0]
     # contains the reward for timestep -1, which does not exist. Hence we shift the array.
     # Then, pad with a 0-value at the end to make the influence rewards align with sample_batch.
@@ -79,7 +82,7 @@ def weigh_and_add_contribute_reward(policy, sample_batch):
     contribute = sample_batch['cont_rewards']
     # Clip and weigh influence reward
     contribute = np.clip(contribute, -policy.contribute_reward_clip, policy.contribute_reward_clip)
-    contribute = contribute * cur_contribute_reward_weight
+    # contribute = contribute * cur_contribute_reward_weight
 
     # Add to trajectory
     sample_batch['contribute_reward'] = contribute

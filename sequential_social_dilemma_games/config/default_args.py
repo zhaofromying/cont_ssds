@@ -2,7 +2,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--exp_name",
         type=str,
-        default=None,
+        default='zhao-',
         help="Name experiment will be stored under. When left empty, the name is formatted as:"
         "env_model_algorithm",
     )
@@ -28,18 +28,18 @@ def add_default_args(parser):
     parser.add_argument(
         "--rollout_fragment_length",
         type=int,
-        default=10,
+        default=1000,
         help="Size of samples taken from single workers. These are concatenated with samples of"
              "other workers to size train_batch_size.",
     )
     parser.add_argument(
         "--train_batch_size",
         type=int,
-        default=20,
+        default=None,
         help="Size of the total dataset over which one epoch is computed. If not specified,"
              "defaults to num_workers * num_envs_per_worker * rollout_fragment_length",
     )
-    parser.add_argument("--num_workers", type=int, default=1, help="Total number of workers")
+    parser.add_argument("--num_workers", type=int, default=4, help="Total number of workers")
     parser.add_argument(
         "--cpus_for_driver", type=int, default=1, help="Number of CPUs used by the driver"
     )
@@ -47,7 +47,7 @@ def add_default_args(parser):
         "--gpus_for_driver", type=float, default=0, help="Number of GPUs used by the driver"
     )
     parser.add_argument(
-        "--cpus_per_worker", type=int, default=0, help="Number of CPUs used by one worker"
+        "--cpus_per_worker", type=int, default=2, help="Number of CPUs used by one worker"
     )
     parser.add_argument(
         "--gpus_per_worker", type=float, default=0, help="Number of GPUs used by one worker"
@@ -55,7 +55,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--num_envs_per_worker",
         type=int,
-        default=1,
+        default=8,
         help="Number of envs to place on a single worker",
     )
     parser.add_argument(
@@ -85,8 +85,6 @@ def add_default_args(parser):
     parser.add_argument(
         "--resume", action="store_true", default=False, help="Resume previous experiment.",
     )
-
-
     parser.add_argument(
         "--checkpoint_frequency",
         type=int,
@@ -96,7 +94,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--stop_at_timesteps_total",
         type=int,
-        default=int(5e6),
+        default=int(1e8),
         help="Experiment stops when this total amount of timesteps has been reached",
     )
     parser.add_argument(
@@ -108,11 +106,11 @@ def add_default_args(parser):
     parser.add_argument(
         "--num_samples", type=int, default=1, help="Amount of times to repeat all experiments",
     )
-    parser.add_argument("--memory", type=int, default=None, help="Amount of total usable memory")
+    parser.add_argument("--memory", type=int, default=2e10, help="Amount of total usable memory")
     parser.add_argument(
         "--object_store_memory",
         type=int,
-        default=None,
+        default=1e10,
         help="Amount of memory for the object store",
     )
     parser.add_argument(
@@ -236,4 +234,24 @@ def add_default_args(parser):
     # Env-specific parameters
     parser.add_argument(
         "--num_switches", type=int, default=6, help="Amount of switches in a switch map environment",
+    )
+    parser.add_argument(
+        "--influence_reward_weight", type=float, default=1.0, help="The moa reward weight.",
+    )
+    parser.add_argument(
+        "--influence_reward_schedule_steps",
+        nargs="+",
+        type=int,
+        default=1e8,
+        help="Amounts of environment steps at which the moa reward has a value specified in"
+             "--influence_reward_schedule_weights",
+    )
+    parser.add_argument(
+        "--influence_reward_schedule_weights",
+        nargs="+",
+        type=float,
+        default=1.0,
+        help="Values for the moa reward schedule. Linearly interpolates using "
+             "--influence_reward_schedule_steps. The final value is"
+             " --influence_reward_weight * interpolated_value",
     )

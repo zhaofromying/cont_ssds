@@ -43,7 +43,7 @@ class A3CLoss(object):
 
 def postprocess_a3c_moa(policy, sample_batch, other_agent_batches=None, episode=None):
     """Adds the policy logits, VF preds, and advantages to the trajectory."""
-
+    print('moa')
     batch = moa_postprocess_trajectory(policy, sample_batch)
     batch = postprocess_advantages(policy, batch)
     return batch
