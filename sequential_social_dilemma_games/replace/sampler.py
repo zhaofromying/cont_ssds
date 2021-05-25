@@ -40,13 +40,15 @@ class PerfStats:
         self.iters = 0
         self.env_wait_time = 0.0
         self.processing_time = 0.0
+        self.predict_time = 0.0
         self.inference_time = 0.0
 
     def get(self):
         return {
             "mean_env_wait_ms": self.env_wait_time * 1000 / self.iters,
             "mean_processing_ms": self.processing_time * 1000 / self.iters,
-            "mean_inference_ms": self.inference_time * 1000 / self.iters
+            "mean_inference_ms": self.inference_time * 1000 / self.iters,
+            'mean_predict_ms': self.predict_time * 1000 / self.iters
         }
 
 
@@ -74,7 +76,7 @@ class SyncSampler(SamplerInput):
                  clip_rewards,
                  rollout_fragment_length,
                  callbacks,
-                 try_steps,
+                 predict_steps,
                  horizon=None,
                  pack=False,
                  tf_sess=None,
@@ -92,7 +94,7 @@ class SyncSampler(SamplerInput):
         self.perf_stats = PerfStats()
         self.rollout_provider = _env_runner(
             worker, self.base_env, self.extra_batches.put, self.policies,
-            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon,try_steps,
+            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon, predict_steps,
             self.preprocessors, self.obs_filters, clip_rewards, clip_actions,
             pack, callbacks, tf_sess, self.perf_stats, soft_horizon,
             no_done_at_end)
@@ -137,7 +139,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
                  clip_rewards,
                  rollout_fragment_length,
                  callbacks,
-                 try_steps,
+                 predict_steps,
                  horizon=None,
                  pack=False,
                  tf_sess=None,
@@ -156,7 +158,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
         self.metrics_queue = queue.Queue()
         self.rollout_fragment_length = rollout_fragment_length
         self.horizon = horizon
-        self.try_steps=try_steps
+        self.predict_steps = predict_steps
         self.policies = policies
         self.policy_mapping_fn = policy_mapping_fn
         self.preprocessors = preprocessors
@@ -190,7 +192,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
                 lambda x: self.extra_batches.put(x, timeout=600.0))
         rollout_provider = _env_runner(
             self.worker, self.base_env, extra_batches_putter, self.policies,
-            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon, self.try_steps,
+            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon, self.predict_steps,
             self.preprocessors, self.obs_filters, self.clip_rewards,
             self.clip_actions, self.pack, self.callbacks, self.tf_sess,
             self.perf_stats, self.soft_horizon, self.no_done_at_end)
@@ -236,7 +238,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
 
 
 def _env_runner(worker, base_env, extra_batch_callback, policies,
-                policy_mapping_fn, rollout_fragment_length, horizon, try_steps,
+                policy_mapping_fn, rollout_fragment_length, horizon, predict_steps,
                 preprocessors, obs_filters, clip_rewards, clip_actions, pack,
                 callbacks, tf_sess, perf_stats, soft_horizon, no_done_at_end):
     """This implements the common experience collection logic.
@@ -378,6 +380,7 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
             off_policy_actions, policies, clip_actions)
         perf_stats.processing_time += time.time() - t3
 
+        t4 = time.time()
         cf_actions = copy.deepcopy(actions_to_send)
         for i in range(agents_num):
             total_reward = 0
@@ -388,7 +391,7 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
             cf_envs[i].send_actions(cf_actions)
             mok_episodes = defaultdict(new_episode)
 
-            for j in range(try_steps):
+            for j in range(predict_steps):
                 unfiltered_obs, rewards, dones, infos, off_policy_actions = \
                     cf_envs[i].poll()
                 total_reward += sum(rewards[0].values())
@@ -408,12 +411,12 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
                 
                 cf_envs[i].send_actions(cf_actions)
             cf_rewards[agent_id] = total_reward
-        
+        perf_stats.predict_time += time.time() - t4
         # Return computed actions to ready envs. We also send to envs that have
         # taken off-policy actions; those envs are free to ignore the action.
-        t4 = time.time()
+        t5 = time.time()
         base_env.send_actions(actions_to_send)
-        perf_stats.env_wait_time += time.time() - t4
+        perf_stats.env_wait_time += time.time() - t5
 
 
 def _process_observations(worker, base_env, policies, batch_builder_pool,

@@ -100,6 +100,7 @@ def build_experiment_config_dict(args):
     update_nested_dict(
         config,
         {
+            'seed':12345,
             "horizon": 1000,
             "gamma": 0.99,
             "lr": args.lr,
@@ -124,9 +125,9 @@ def build_experiment_config_dict(args):
                 "custom_options": {
                     "cell_size": lstm_cell_size,
                     "num_other_agents": args.num_agents - 1,
-                    'try_steps': 10,
+                    'predict_steps': 10,
                     "contribute_reward_clip": 10,
-                    'contribute_reward_weight': 1.0,
+                    'contribute_reward_weight': 0.1,
                     'contribute_reward_schedule_steps': 1e8,
                     'contribute_reward_schedule_weights': 1.0
                 },

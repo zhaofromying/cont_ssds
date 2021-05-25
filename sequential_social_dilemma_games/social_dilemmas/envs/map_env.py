@@ -9,6 +9,8 @@ from gym.spaces import Box, Dict
 from ray.rllib.agents.callbacks import DefaultCallbacks
 from ray.rllib.env import MultiAgentEnv
 
+from gym.utils import seeding
+
 _MAP_ENV_ACTIONS = {
     "MOVE_LEFT": [0, -1],  # Move left
     "MOVE_RIGHT": [0, 1],  # Move right
@@ -320,6 +322,10 @@ class MapEnv(MultiAgentEnv):
             else:
                 observations[agent.agent_id] = {"curr_obs": rgb_arr}
         return observations
+
+    def seed(self, seed):
+        _, seed = seeding.np_random(seed)
+        return [seed]
 
     @property
     def agent_pos(self):
