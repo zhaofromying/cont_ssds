@@ -9,8 +9,7 @@ import copy
 from ray.util.debug import log_once
 from ray.rllib.evaluation.episode import MultiAgentEpisode
 from ray.rllib.evaluation.rollout_metrics import RolloutMetrics
-from ray.rllib.evaluation.sample_batch_builder import \
-    MultiAgentSampleBatchBuilder
+
 from ray.rllib.policy.policy import clip_action
 from ray.rllib.policy.tf_policy import TFPolicy
 from ray.rllib.env.base_env import BaseEnv, ASYNC_RESET_RETURN
@@ -21,6 +20,10 @@ from ray.rllib.utils.debug import summarize
 from ray.rllib.utils.tuple_actions import TupleActions
 from ray.rllib.utils.space_utils import flatten_to_single_ndarray
 from ray.rllib.utils.tf_run_builder import TFRunBuilder
+
+# from ray.rllib.evaluation.sample_batch_builder import \
+#     MultiAgentSampleBatchBuilder
+from replace.sample_batch_builder import MultiAgentSampleBatchBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,7 @@ class SyncSampler(SamplerInput):
                  clip_rewards,
                  rollout_fragment_length,
                  callbacks,
+                 try_steps,
                  horizon=None,
                  pack=False,
                  tf_sess=None,
@@ -88,7 +92,7 @@ class SyncSampler(SamplerInput):
         self.perf_stats = PerfStats()
         self.rollout_provider = _env_runner(
             worker, self.base_env, self.extra_batches.put, self.policies,
-            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon,
+            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon,try_steps,
             self.preprocessors, self.obs_filters, clip_rewards, clip_actions,
             pack, callbacks, tf_sess, self.perf_stats, soft_horizon,
             no_done_at_end)
@@ -133,6 +137,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
                  clip_rewards,
                  rollout_fragment_length,
                  callbacks,
+                 try_steps,
                  horizon=None,
                  pack=False,
                  tf_sess=None,
@@ -151,6 +156,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
         self.metrics_queue = queue.Queue()
         self.rollout_fragment_length = rollout_fragment_length
         self.horizon = horizon
+        self.try_steps=try_steps
         self.policies = policies
         self.policy_mapping_fn = policy_mapping_fn
         self.preprocessors = preprocessors
@@ -184,7 +190,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
                 lambda x: self.extra_batches.put(x, timeout=600.0))
         rollout_provider = _env_runner(
             self.worker, self.base_env, extra_batches_putter, self.policies,
-            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon,
+            self.policy_mapping_fn, self.rollout_fragment_length, self.horizon, self.try_steps,
             self.preprocessors, self.obs_filters, self.clip_rewards,
             self.clip_actions, self.pack, self.callbacks, self.tf_sess,
             self.perf_stats, self.soft_horizon, self.no_done_at_end)
@@ -230,7 +236,7 @@ class AsyncSampler(threading.Thread, SamplerInput):
 
 
 def _env_runner(worker, base_env, extra_batch_callback, policies,
-                policy_mapping_fn, rollout_fragment_length, horizon,
+                policy_mapping_fn, rollout_fragment_length, horizon, try_steps,
                 preprocessors, obs_filters, clip_rewards, clip_actions, pack,
                 callbacks, tf_sess, perf_stats, soft_horizon, no_done_at_end):
     """This implements the common experience collection logic.
@@ -371,19 +377,18 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
             to_eval, eval_results, active_episodes, active_envs,
             off_policy_actions, policies, clip_actions)
         perf_stats.processing_time += time.time() - t3
-        
-        N_steps = 5
+
         cf_actions = copy.deepcopy(actions_to_send)
         for i in range(agents_num):
             total_reward = 0
             agent_id = 'agent-' + str(i)
             if cf_actions[0][agent_id] == 4:
                 continue
-            cf_actions[0][agent_id] == 4
+            cf_actions[0][agent_id] = 4
             cf_envs[i].send_actions(cf_actions)
             mok_episodes = defaultdict(new_episode)
 
-            for j in range(N_steps):
+            for j in range(try_steps):
                 unfiltered_obs, rewards, dones, infos, off_policy_actions = \
                     cf_envs[i].poll()
                 total_reward += sum(rewards[0].values())
@@ -951,7 +956,7 @@ def _my_process_observations(worker, base_env, policies, batch_builder_pool,
 
 
 def compute_actual_rewards(episode, horizon, agent_nums):
-    actual_rewards = [0] * horizon
+    actual_rewards = np.zeros(horizon)
     cf_rewards = []
     for data in episode.batch_builder.agent_builders.values():
         for i in range(horizon):
@@ -959,9 +964,9 @@ def compute_actual_rewards(episode, horizon, agent_nums):
                 actual_rewards[i] += sum(data.buffers['rewards'][i:i+5])
             else:
                 actual_rewards[i] += sum(data.buffers['rewards'][i:])
-        cf_rewards.append(data.buffers['cf_rewards'])
+        cf_rewards.append(np.asarray(data.buffers['cf_rewards'], dtype=np.float32))
     # cont_rewards
     cont_rewards = {}
     for i in range(agent_nums):
-        cont_rewards['agent-'+str(i)] = list(map(lambda x:x[0]-x[1], zip(actual_rewards, cf_rewards[i])))
+        cont_rewards['agent-'+str(i)] = list(actual_rewards - cf_rewards[i])
     episode.batch_builder.add_cont_values(cont_rewards)

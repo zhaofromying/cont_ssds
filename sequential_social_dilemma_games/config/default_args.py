@@ -39,7 +39,7 @@ def add_default_args(parser):
         help="Size of the total dataset over which one epoch is computed. If not specified,"
              "defaults to num_workers * num_envs_per_worker * rollout_fragment_length",
     )
-    parser.add_argument("--num_workers", type=int, default=4, help="Total number of workers")
+    parser.add_argument("--num_workers", type=int, default=1, help="Total number of workers")
     parser.add_argument(
         "--cpus_for_driver", type=int, default=1, help="Number of CPUs used by the driver"
     )
@@ -47,7 +47,7 @@ def add_default_args(parser):
         "--gpus_for_driver", type=float, default=0, help="Number of GPUs used by the driver"
     )
     parser.add_argument(
-        "--cpus_per_worker", type=int, default=2, help="Number of CPUs used by one worker"
+        "--cpus_per_worker", type=int, default=1, help="Number of CPUs used by one worker"
     )
     parser.add_argument(
         "--gpus_per_worker", type=float, default=0, help="Number of GPUs used by one worker"
@@ -55,7 +55,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--num_envs_per_worker",
         type=int,
-        default=8,
+        default=1,
         help="Number of envs to place on a single worker",
     )
     parser.add_argument(
