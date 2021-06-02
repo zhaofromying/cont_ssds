@@ -15,7 +15,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--algorithm",
         type=str,
-        default="A3C",
+        default="PPO",
         help="Name of the rllib algorithm to use. Can be A3C or PPO.",
     )
     parser.add_argument(
@@ -35,13 +35,13 @@ def add_default_args(parser):
     parser.add_argument(
         "--train_batch_size",
         type=int,
-        default=None,
+        default=2000,
         help="Size of the total dataset over which one epoch is computed. If not specified,"
              "defaults to num_workers * num_envs_per_worker * rollout_fragment_length",
     )
-    parser.add_argument("--num_workers", type=int, default=2, help="Total number of workers")
+    parser.add_argument("--num_workers", type=int, default=1, help="Total number of workers")
     parser.add_argument(
-        "--cpus_for_driver", type=int, default=2, help="Number of CPUs used by the driver"
+        "--cpus_for_driver", type=int, default=1, help="Number of CPUs used by the driver"
     )
     parser.add_argument(
         "--gpus_for_driver", type=float, default=0, help="Number of GPUs used by the driver"
@@ -55,7 +55,7 @@ def add_default_args(parser):
     parser.add_argument(
         "--num_envs_per_worker",
         type=int,
-        default=4,
+        default=16,
         help="Number of envs to place on a single worker",
     )
     parser.add_argument(
@@ -78,6 +78,19 @@ def add_default_args(parser):
              "--influence_reward_schedule_steps. The final value is"
              " --influence_reward_weight * interpolated_value",
     )
+    parser.add_argument(
+        "--use_collective_reward",
+        action="store_true",
+        default=True,
+        help="Train using collective reward instead of individual reward.",
+    )
+    parser.add_argument(
+        "--tune_hparams",
+        action="store_true",
+        default=False,
+        help="When provided, run population-based training over hyperparameters",
+    )
+
 
 
 
@@ -138,12 +151,7 @@ def add_default_args(parser):
         "--address", type=str, default=None, help="The address of the Ray cluster to connect to.",
     )
     parser.add_argument("--use_s3", action="store_true", default=False, help="If true upload to s3")
-    parser.add_argument(
-        "--tune_hparams",
-        action="store_true",
-        default=False,
-        help="When provided, run population-based training over hyperparameters",
-    )
+
     parser.add_argument(
         "--grad_clip",
         type=float,
@@ -176,12 +184,7 @@ def add_default_args(parser):
 
     parser.add_argument("--entropy_coeff", type=float, default=0.001, help="Entropy reward weight.")
 
-    parser.add_argument(
-        "--use_collective_reward",
-        action="store_true",
-        default=False,
-        help="Train using collective reward instead of individual reward.",
-    )
+
 
     # MOA Parameters
     parser.add_argument(

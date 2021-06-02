@@ -239,13 +239,14 @@ class TestMultiAgentEnv(unittest.TestCase):
         update_nested_dict(
             config,
             {
-                "horizon": 10,
+                'seed': 132455,
+                "horizon": 200,
                 "gamma": 0.99,
                 "lr": 0.0001,
                 "lr_schedule": None,
                 "vf_loss_coeff": 0.1,
-                "rollout_fragment_length": 10,
-                "train_batch_size": 20,
+                "rollout_fragment_length": 200,
+                "train_batch_size": 2000,
                 "multiagent": {"policies": policy_graphs, "policy_mapping_fn": policy_mapping_fn},
                 "callbacks": single_env.get_environment_callbacks(),
                 "model": {
@@ -256,8 +257,9 @@ class TestMultiAgentEnv(unittest.TestCase):
                     "custom_options": {
                         "cell_size": lstm_cell_size,
                         "num_other_agents": 4,
+                        'predict_steps': 15,
                         "contribute_reward_clip": 10,
-                        'contribute_reward_weight': 1.0,
+                        'contribute_reward_weight': 0.05,
                         'contribute_reward_schedule_steps': 1e8,
                         'contribute_reward_schedule_weights': 1.0
                     },

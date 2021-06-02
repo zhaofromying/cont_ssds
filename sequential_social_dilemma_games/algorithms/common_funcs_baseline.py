@@ -67,12 +67,12 @@ class ContributeScheduleMixIn(object):
 
 def cont_postprocess_trajectory(policy, sample_batch, other_agent_batches=None, episode=None):
     # Weigh social influence reward and add to batch.
-    sample_batch = weigh_and_add_contribute_reward(policy, sample_batch)
+    sample_batch = weight_and_add_contribute_reward(policy, sample_batch)
 
     return sample_batch
 
 
-def weigh_and_add_contribute_reward(policy, sample_batch):
+def weight_and_add_contribute_reward(policy, sample_batch):
     # cur_contribute_reward_weight = policy.compute_contribute_reward_weight()
     # Since the reward calculation is delayed by 1 step, sample_batch[SOCIAL_INFLUENCE_REWARD][0]
     # contains the reward for timestep -1, which does not exist. Hence we shift the array.
@@ -82,10 +82,9 @@ def weigh_and_add_contribute_reward(policy, sample_batch):
     contribute = sample_batch['cont_rewards']
     # Clip and weigh influence reward
     contribute = np.clip(contribute, -policy.contribute_reward_clip, policy.contribute_reward_clip)
-    # contribute = contribute * cur_contribute_reward_weight
-
+    contribute = contribute * policy.baseline_contribute_reward_weight
     # Add to trajectory
-    sample_batch['contribute_reward'] = contribute
+    sample_batch['cont_rewards'] = contribute
     sample_batch["extrinsic_reward"] = sample_batch["rewards"]
     sample_batch["rewards"] = sample_batch["rewards"] + contribute
 

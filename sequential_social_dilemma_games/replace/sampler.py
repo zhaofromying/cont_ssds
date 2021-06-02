@@ -361,7 +361,7 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
         active_envs, to_eval, outputs = _my_process_observations(
             worker, base_env, policies, batch_builder_pool, active_episodes,
             unfiltered_obs, rewards, dones, infos, cf_rewards, agents_num, off_policy_actions, horizon,
-            preprocessors, obs_filters, rollout_fragment_length, pack,
+            preprocessors, obs_filters, rollout_fragment_length, predict_steps, pack,
             callbacks, soft_horizon, no_done_at_end)
         perf_stats.processing_time += time.time() - t1
         for o in outputs:
@@ -386,6 +386,7 @@ def _env_runner(worker, base_env, extra_batch_callback, policies,
             total_reward = 0
             agent_id = 'agent-' + str(i)
             if cf_actions[0][agent_id] == 4:
+                cf_rewards[agent_id] = -1
                 continue
             cf_actions[0][agent_id] = 4
             cf_envs[i].send_actions(cf_actions)
@@ -773,10 +774,11 @@ def _get_or_raise(mapping, policy_id):
             "in policy map keys {}.".format(policy_id, mapping.keys()))
     return mapping[policy_id]
 
+
 def _my_process_observations(worker, base_env, policies, batch_builder_pool,
                           active_episodes, unfiltered_obs, rewards, dones,
                           infos, cf_rewards, agents_num, off_policy_actions, horizon, preprocessors,
-                          obs_filters, rollout_fragment_length, pack,
+                          obs_filters, rollout_fragment_length, predict_steps, pack,
                           callbacks, soft_horizon, no_done_at_end):
     """Record new data from the environment and prepare for policy evaluation.
 
@@ -898,11 +900,11 @@ def _my_process_observations(worker, base_env, policies, batch_builder_pool,
                 episode.batch_builder.check_missing_dones()
             if (all_done and not pack) or \
                     episode.batch_builder.count >= rollout_fragment_length:
-                compute_actual_rewards(episode, horizon, agents_num)
+                compute_actual_rewards(episode, horizon, agents_num, predict_steps)
                 outputs.append(episode.batch_builder.build_and_reset(episode))
             elif all_done:
                 # Make sure postprocessor stays within one episode
-                compute_actual_rewards(episode, horizon, agents_num)
+                compute_actual_rewards(episode, horizon, agents_num, predict_steps)
                 episode.batch_builder.postprocess_batch_so_far(episode)
 
         if all_done:
@@ -958,18 +960,24 @@ def _my_process_observations(worker, base_env, policies, batch_builder_pool,
     return active_envs, to_eval, outputs
 
 
-def compute_actual_rewards(episode, horizon, agent_nums):
+def compute_actual_rewards(episode, horizon, agent_nums, predict_steps):
     actual_rewards = np.zeros(horizon)
     cf_rewards = []
     for data in episode.batch_builder.agent_builders.values():
-        for i in range(horizon):
-            if i < horizon - 5:
-                actual_rewards[i] += sum(data.buffers['rewards'][i:i+5])
-            else:
-                actual_rewards[i] += sum(data.buffers['rewards'][i:])
+        # for i in range(horizon):
+        #     if i < horizon - predict_steps:
+        #         actual_rewards[i] += sum(data.buffers['rewards'][i:i+predict_steps])
+        #     else:
+        #         actual_rewards[i] += sum(data.buffers['rewards'][i:])
         cf_rewards.append(np.asarray(data.buffers['cf_rewards'], dtype=np.float32))
+    actual_rewards = episode.batch_builder.agent_builders['agent-0'].buffers['rewards']
     # cont_rewards
     cont_rewards = {}
     for i in range(agent_nums):
-        cont_rewards['agent-'+str(i)] = list(actual_rewards - cf_rewards[i])
+        cont_reward = actual_rewards - cf_rewards[i]
+        mu = np.mean(cont_reward)
+        sigma = np.std(cont_reward)
+        cont_reward = (cont_reward - mu) / sigma
+        cont_rewards['agent-'+str(i)] = list(cont_reward)
+    # print(cont_rewards)
     episode.batch_builder.add_cont_values(cont_rewards)

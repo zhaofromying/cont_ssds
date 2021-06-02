@@ -12,12 +12,18 @@ from ray.rllib.models import ModelCatalog
 from ray.tune import Experiment
 from ray.tune.registry import register_env
 from ray.tune.schedulers import PopulationBasedTraining
+import os
+
+curPath = os.path.abspath(os.path.dirname(__file__))
+rootPath = os.path.split(curPath)[0]
+sys.path.append(rootPath)
 
 from algorithms.a3c_baseline import build_a3c_baseline_trainer
 from algorithms.a3c_moa import build_a3c_moa_trainer
 from algorithms.impala_baseline import build_impala_baseline_trainer
 from algorithms.impala_moa import build_impala_moa_trainer
-from algorithms.ppo_baseline import build_ppo_baseline_trainer
+# from algorithms.ppo_baseline import build_ppo_baseline_trainer
+from replace.ppo_baseline import build_ppo_baseline_trainer
 from algorithms.ppo_moa import build_ppo_moa_trainer
 from algorithms.ppo_scm import build_ppo_scm_trainer
 from config.default_args import add_default_args
@@ -26,13 +32,12 @@ from models.moa_model import MOAModel
 from models.scm_model import SocialCuriosityModule
 from social_dilemmas.envs.env_creator import get_env_creator
 from utility_funcs import update_nested_dict
-import os
+
+
+
 
 parser = argparse.ArgumentParser()
 add_default_args(parser)
-
-
-os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_xla_devices'
 
 
 def build_experiment_config_dict(args):
@@ -100,7 +105,7 @@ def build_experiment_config_dict(args):
     update_nested_dict(
         config,
         {
-            'seed':12345,
+            'seed': 12345,
             "horizon": 1000,
             "gamma": 0.99,
             "lr": args.lr,
@@ -125,9 +130,9 @@ def build_experiment_config_dict(args):
                 "custom_options": {
                     "cell_size": lstm_cell_size,
                     "num_other_agents": args.num_agents - 1,
-                    'predict_steps': 10,
+                    'predict_steps': 15,
                     "contribute_reward_clip": 10,
-                    'contribute_reward_weight': 0.1,
+                    'contribute_reward_weight': 1,
                     'contribute_reward_schedule_steps': 1e8,
                     'contribute_reward_schedule_weights': 1.0
                 },
@@ -326,6 +331,11 @@ def create_hparam_tune_dict(model, is_config=False):
         baseline_options = {
             "entropy_coeff": wrapper(random.expovariate(1000)),
             "lr": wrapper(random.uniform(0.00001, 0.01)),
+            "train_batch_size": wrapper(random.choice([2000, 4000, 8000, 12000])),
+            "predict_steps": wrapper(random.randint(10, 20)),
+            # "contribute_reward_weight": wrapper(random.choice([0.001, 0.005, 0.01, 0.05])),
+            "horizon": wrapper(random.choice([200, 600, 1000, 2000])),
+            "rollout_fegement_length": wrapper(random.choice([400, 800, 1200, 2000]))
         }
     if model == "moa":
         model_options = {
